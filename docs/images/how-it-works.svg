@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+  <title>Why chats get lost when a project moves, and how claude-portable reconnects them</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5f6b7a"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1a7f4b"/>
+    </marker>
+  </defs>
+  <rect width="920" height="560" rx="16" fill="#f7f8fa"/>
+
+  <text x="40" y="52" font-size="24" font-weight="700" fill="#1f2328">How Claude Code finds a project's chats</text>
+  <text x="40" y="80" font-size="15" fill="#57606a">The folder under projects\ is named after the project path: every symbol becomes "-".</text>
+
+  <!-- row 1: normal -->
+  <rect x="40" y="104" width="300" height="56" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="58" y="128" font-size="13" fill="#57606a">Project</text>
+  <text x="58" y="148" font-size="15" font-family="Consolas, Menlo, monospace" fill="#1f2328">C:\Users\me\my-app</text>
+  <line x1="340" y1="132" x2="470" y2="132" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="476" y="104" width="404" height="56" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="494" y="128" font-size="13" fill="#57606a">Chats and memory in</text>
+  <text x="494" y="148" font-size="15" font-family="Consolas, Menlo, monospace" fill="#1f2328">projects\C--Users-me-my-app</text>
+
+  <!-- row 2: moved, lost -->
+  <text x="40" y="200" font-size="17" font-weight="700" fill="#b42318">Without claude-portable: move the project and the chats are gone</text>
+  <rect x="40" y="216" width="300" height="56" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="58" y="240" font-size="13" fill="#57606a">Project moved to</text>
+  <text x="58" y="260" font-size="15" font-family="Consolas, Menlo, monospace" fill="#1f2328">D:\work\my-app</text>
+  <line x1="340" y1="244" x2="470" y2="244" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="476" y="216" width="404" height="56" rx="10" fill="#fff5f5" stroke="#f1aeb5" stroke-dasharray="6 4"/>
+  <text x="494" y="240" font-size="13" fill="#b42318">Claude looks in a new, empty folder</text>
+  <text x="494" y="260" font-size="15" font-family="Consolas, Menlo, monospace" fill="#1f2328">projects\D--work-my-app</text>
+  <text x="494" y="294" font-size="13" fill="#57606a">Old chats are still on disk, under the old name: not found.</text>
+
+  <!-- row 3: with claude-portable -->
+  <text x="40" y="340" font-size="17" font-weight="700" fill="#1a7f4b">With claude-portable: the registry remembers, relink renames the folder</text>
+  <rect x="40" y="356" width="300" height="150" rx="10" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="58" y="380" font-size="13" fill="#57606a">portable\workspaces.json</text>
+  <text x="58" y="406" font-size="14" font-family="Consolas, Menlo, monospace" fill="#1f2328">"my-app": {</text>
+  <text x="74" y="426" font-size="14" font-family="Consolas, Menlo, monospace" fill="#1f2328">"path": "C:\Users\me\my-app",</text>
+  <text x="74" y="446" font-size="14" font-family="Consolas, Menlo, monospace" fill="#1f2328">"folder": "C--Users-me-my-app"</text>
+  <text x="58" y="466" font-size="14" font-family="Consolas, Menlo, monospace" fill="#1f2328">}</text>
+  <text x="58" y="492" font-size="12" fill="#57606a">updated by a hook at every session start</text>
+
+  <line x1="340" y1="430" x2="470" y2="430" stroke="#1a7f4b" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="356" y="420" font-size="13" font-weight="600" fill="#1a7f4b">relink</text>
+
+  <rect x="476" y="356" width="404" height="150" rx="10" fill="#f0faf4" stroke="#8fd3ad"/>
+  <text x="494" y="382" font-size="14" fill="#1f2328">1. You open the project at its new path</text>
+  <text x="494" y="408" font-size="14" fill="#1f2328">2. Claude: "this looks like my-app, moved here"</text>
+  <text x="494" y="434" font-size="14" fill="#1f2328">3. Relink renames the folder:</text>
+  <text x="512" y="456" font-size="13" font-family="Consolas, Menlo, monospace" fill="#1f2328">C--Users-me-my-app</text>
+  <text x="512" y="476" font-size="13" font-family="Consolas, Menlo, monospace" fill="#1a7f4b">  -&gt; D--work-my-app</text>
+  <text x="494" y="498" font-size="14" font-weight="600" fill="#1a7f4b">/resume and memory work again</text>
+
+  <text x="40" y="536" font-size="13" fill="#57606a">Everything lives in one data folder (CLAUDE_CONFIG_DIR), and chats are kept for 100 years instead of 30 days.</text>
+</svg>

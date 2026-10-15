@@ -83,6 +83,11 @@ foreach ($item in $plan) {
         Write-Info "folder : $($item.OldFolder)"
         Write-Info "      -> rename to $($item.NewFolder)"
     }
+    $state = Copy-ProjectState $claudeDir $item.Old $item.New -DryRun
+    if ($state) { Write-Info "state  : $state" }
+    if ($item.OldFolder -and (Test-Path -LiteralPath (Get-ArchiveFile $claudeDir $item.OldFolder))) {
+        Write-Info 'archive: archived chats follow the folder'
+    }
 }
 
 if ($DryRun) { Write-Host ''; Write-Info 'Dry run: nothing changed.'; exit 0 }
@@ -123,6 +128,15 @@ foreach ($item in $plan) {
             Rename-Item -LiteralPath $from -NewName $item.NewFolder
             Write-Ok "Renamed $($item.OldFolder) -> $($item.NewFolder)"
         }
+        if (Move-ChatArchive $claudeDir $item.OldFolder $item.NewFolder) { Write-Ok 'Archived chats moved along.' }
+    }
+    # Folder trust and permissions. Claude Code may rewrite .claude.json while it runs, so this is
+    # best done with Claude Code closed; the old entry is kept and a backup is made first.
+    try {
+        $state = Copy-ProjectState $claudeDir $item.Old $item.New
+        if ($state) { Write-Ok "State: $state" }
+    } catch {
+        Write-Warn "Could not copy trust and permissions: $($_.Exception.Message)"
     }
     if ($item.Name) {
         $entry = $workspaces[$item.Name]
@@ -141,4 +155,4 @@ Save-Registry $claudeDir $registry
 Write-Host ''
 Write-Host 'Done.' -ForegroundColor Green
 Write-Info "Open Claude Code in $NewPath and use /resume to find the old chats."
-Write-Info 'Claude may ask again to trust the folder: that is expected for a new path.'
+Write-Info 'If Claude Code was open during the relink and asks again to trust the folder, just accept.'

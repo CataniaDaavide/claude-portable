@@ -9,6 +9,7 @@
 #>
 param(
     [switch]$CopyBack,
+    [switch]$SkipEnvironment,
     [switch]$Force
 )
 
@@ -34,12 +35,16 @@ Write-Ok 'CLAUDE.md block removed.'
 
 if ($CopyBack) {
     Write-Step "Copying $claudeDir -> $default"
-    if (-not (Invoke-Robocopy $claudeDir $default @('/XD', (Get-PortableDir $claudeDir), '/XF', 'claude-portable.bat'))) { throw 'Copy failed (robocopy).' }
+    if (-not (Invoke-Robocopy $claudeDir $default @('/XD', (Get-PortableDir $claudeDir), '/XF', 'claude-portable.bat', 'claude-portable.sh'))) { throw 'Copy failed (robocopy).' }
     $global = Get-GlobalConfigFile $claudeDir
     if (Test-Path -LiteralPath $global) { Copy-Item -LiteralPath $global -Destination (Join-Path $env:USERPROFILE '.claude.json') -Force }
     Write-Ok 'Copied.'
 }
 
-[Environment]::SetEnvironmentVariable('CLAUDE_CONFIG_DIR', $null, 'User')
-Write-Ok 'CLAUDE_CONFIG_DIR removed.'
+if ($SkipEnvironment) {
+    Write-Warn 'CLAUDE_CONFIG_DIR left as it is (-SkipEnvironment).'
+} else {
+    [Environment]::SetEnvironmentVariable('CLAUDE_CONFIG_DIR', $null, 'User')
+    Write-Ok 'CLAUDE_CONFIG_DIR removed.'
+}
 Write-Info 'Restart VS Code and terminals to apply.'

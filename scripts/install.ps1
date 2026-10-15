@@ -45,8 +45,18 @@ $DataDir = ConvertTo-NormalizedPath $DataDir
 if (-not $Source) { $Source = Get-ActiveClaudeDir }
 $Source = ConvertTo-NormalizedPath $Source
 
+# The target is already a portable data folder that Claude Code does not use yet (moved or copied
+# here): copying the current data over it would overwrite newer chats, so import it in place.
+if (($Source -ine $DataDir) -and (Test-Path -LiteralPath (Get-RegistryFile $DataDir))) {
+    Write-Host ''
+    Write-Step "$DataDir is already a claude-portable data folder (moved or copied here)."
+    Write-Info 'Using it as it is instead of copying over it: switching to Import.'
+    & (Join-Path $PSScriptRoot 'import-data.ps1') -From $DataDir -DataDir $DataDir -SkipEnvironment:$SkipEnvironment -Force:$Force
+    exit $LASTEXITCODE
+}
+
 Write-Host ''
-Write-Host 'claude-portable - install' -ForegroundColor White
+Write-Host "claude-portable $(Get-PortableVersion) - install" -ForegroundColor White
 Write-Info "Current Claude data : $Source"
 Write-Info "Portable folder     : $DataDir"
 Write-Info "Chat retention      : $RetentionDays days"
@@ -64,7 +74,9 @@ if (-not $Force) {
 # 1. copy data -----------------------------------------------------------------
 if (-not $Fresh) {
     if (-not (Assert-ClaudeClosed -Force:$Force)) { Write-Info 'Nothing changed.'; exit 1 }
-    if (-not (Test-Path -LiteralPath $Source)) { throw "Source folder not found: $Source" }
+    if (-not (Test-Path -LiteralPath $Source)) {
+        throw "Claude data not found in $Source. If you moved the data folder, choose Import and give its new path."
+    }
     if ((Test-Path -LiteralPath $DataDir) -and @(Get-ChildItem -LiteralPath $DataDir -Force).Count -gt 0) {
         Write-Warn "$DataDir is not empty. Files with the same name will be overwritten by the newer copy."
         if (-not $Force -and -not (Confirm-Choice 'Continue?' $false)) { Write-Info 'Nothing changed.'; exit 1 }

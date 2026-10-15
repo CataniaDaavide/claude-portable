@@ -2,18 +2,20 @@
 
 This folder holds everything Claude Code saved on a computer: chats, auto memory, settings,
 skills and plugins. It was set up by [claude-portable](https://github.com/CataniaDaavide/claude-portable)
-and works on its own: you do not need the repository to use it.
+and works on its own, on Windows, macOS and Linux: you do not need the repository to use it.
 
-- `claude-portable.bat` (one level up): opens the menu (status, relink, export, import, uninstall).
-- `portable\workspaces.json`: which project path belongs to which folder under `projects\`.
-- `portable\scripts\`: the scripts the menu runs.
-- `portable\docs\`: the full guides (`README.md` in English, `README.it.md` in Italian).
+- `claude-portable.bat` (Windows) / `claude-portable.sh` (macOS/Linux), one level up: open the menu
+  (status, relink, export, import, uninstall, forget, archive and restore old chats).
+- `portable/workspaces.json`: which project path belongs to which folder under `projects/`.
+- `portable/scripts/` (Windows) and `portable/unix/` (macOS/Linux): the scripts the menu runs.
+- `portable/docs/`: the full guides (`README.md` in English, `README.it.md` in Italian) with diagrams.
 
 ## Use it on another computer
 
 1. Install Claude Code on the new computer.
-2. Copy this whole folder there, for example to `C:\Users\<you>\claude-data`.
-3. Double-click `claude-portable.bat` in the copied folder and choose **5. Import**.
+2. Copy this whole folder there, for example to `~/claude-data`.
+3. Run the launcher in the copied folder (double-click `claude-portable.bat`, or `sh claude-portable.sh`)
+   and choose **5. Import**.
 4. As the folder to import, give the copied folder itself; press Enter to keep it where it is.
 5. For each project, type where it lives now (or press Enter to do it later with **3. Relink**).
 6. Close and reopen VS Code / terminals.
@@ -32,18 +34,20 @@ and works on its own: you do not need the repository to use it.
 
 Contiene tutto quello che Claude Code ha salvato su un PC: chat, memoria, impostazioni, skill e
 plugin. È stata preparata da [claude-portable](https://github.com/CataniaDaavide/claude-portable) e
-funziona da sola: il repository non serve.
+funziona da sola, su Windows, macOS e Linux: il repository non serve.
 
-- `claude-portable.bat` (nella cartella sopra): apre il menu (stato, ricollega, esporta, importa, disinstalla).
-- `portable\workspaces.json`: quale percorso di progetto corrisponde a quale cartella in `projects\`.
-- `portable\scripts\`: gli script usati dal menu.
-- `portable\docs\`: le guide complete (`README.md` in inglese, `README.it.md` in italiano).
+- `claude-portable.bat` (Windows) / `claude-portable.sh` (macOS/Linux), nella cartella sopra: aprono
+  il menu (stato, ricollega, esporta, importa, disinstalla, dimentica, archivia e ripristina chat).
+- `portable/workspaces.json`: quale percorso di progetto corrisponde a quale cartella in `projects/`.
+- `portable/scripts/` (Windows) e `portable/unix/` (macOS/Linux): gli script usati dal menu.
+- `portable/docs/`: le guide complete (`README.md` in inglese, `README.it.md` in italiano) con i disegni.
 
 ## Usarla su un altro PC
 
 1. Installa Claude Code sul nuovo PC.
-2. Copia lì tutta questa cartella, ad esempio in `C:\Users\<tu>\claude-data`.
-3. Doppio clic su `claude-portable.bat` nella cartella copiata e scegli **5. Import**.
+2. Copia lì tutta questa cartella, ad esempio in `~/claude-data`.
+3. Avvia lo script nella cartella copiata (doppio clic su `claude-portable.bat`, oppure
+   `sh claude-portable.sh`) e scegli **5. Import**.
 4. Come cartella da importare indica la cartella copiata stessa; premi Invio per lasciarla dov'è.
 5. Per ogni progetto scrivi dove si trova ora (o Invio per farlo dopo con **3. Relink**).
 6. Chiudi e riapri VS Code / i terminali.

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+  <title>Moving Claude Code to another computer with claude-portable</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5f6b7a"/>
+    </marker>
+  </defs>
+  <rect width="920" height="420" rx="16" fill="#f7f8fa"/>
+  <text x="40" y="52" font-size="24" font-weight="700" fill="#1f2328">Moving to another computer</text>
+  <text x="40" y="80" font-size="15" fill="#57606a">Two menu choices. Works between Windows, macOS and Linux.</text>
+
+  <!-- old pc -->
+  <rect x="40" y="110" width="250" height="230" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="60" y="140" font-size="13" font-weight="700" fill="#57606a">OLD COMPUTER</text>
+  <rect x="60" y="156" width="210" height="96" rx="8" fill="#eef2f7"/>
+  <text x="76" y="182" font-size="15" font-weight="600" fill="#1f2328">claude-data</text>
+  <text x="76" y="204" font-size="13" fill="#57606a">chats, memory, settings,</text>
+  <text x="76" y="222" font-size="13" fill="#57606a">skills, registry, login</text>
+  <text x="76" y="240" font-size="13" fill="#57606a">+ the claude-portable scripts</text>
+  <rect x="60" y="272" width="210" height="44" rx="8" fill="#1f6feb"/>
+  <text x="165" y="300" font-size="15" font-weight="600" fill="#ffffff" text-anchor="middle">4. Export</text>
+
+  <line x1="290" y1="294" x2="356" y2="294" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- zip -->
+  <rect x="362" y="240" width="196" height="100" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="460" y="272" font-size="15" font-weight="600" fill="#1f2328" text-anchor="middle">claude-data-export.zip</text>
+  <text x="460" y="296" font-size="13" fill="#1a7f4b" text-anchor="middle">without your login</text>
+  <text x="460" y="318" font-size="13" fill="#57606a" text-anchor="middle">USB drive, cloud, network</text>
+  <text x="460" y="226" font-size="12" fill="#b42318" text-anchor="middle">contains your chats: keep it private</text>
+
+  <line x1="558" y1="294" x2="624" y2="294" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- new pc -->
+  <rect x="630" y="110" width="250" height="230" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="650" y="140" font-size="13" font-weight="700" fill="#57606a">NEW COMPUTER</text>
+  <rect x="650" y="156" width="210" height="44" rx="8" fill="#1f6feb"/>
+  <text x="755" y="184" font-size="15" font-weight="600" fill="#ffffff" text-anchor="middle">5. Import</text>
+  <text x="650" y="226" font-size="13" fill="#1f2328">For each project it asks:</text>
+  <text x="650" y="246" font-size="13" font-family="Consolas, Menlo, monospace" fill="#1f2328">my-app was in C:\...</text>
+  <text x="650" y="266" font-size="13" font-family="Consolas, Menlo, monospace" fill="#1f2328">New path? ~/work/my-app</text>
+  <text x="650" y="296" font-size="13" fill="#1a7f4b">chats and memory relinked</text>
+  <text x="650" y="318" font-size="13" fill="#57606a">then log in again with /login</text>
+
+  <text x="40" y="380" font-size="13" fill="#57606a">No zip? Copy the whole claude-data folder and run claude-portable.bat (Windows) or claude-portable.sh (macOS/Linux)</text>
+  <text x="40" y="400" font-size="13" fill="#57606a">inside it: 5. Import, giving the folder itself. It asks whether to keep the copied login.</text>
+</svg>

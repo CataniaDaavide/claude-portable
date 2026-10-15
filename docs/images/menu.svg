@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="520" viewBox="0 0 920 520" font-family="Consolas, Menlo, 'DejaVu Sans Mono', monospace">
+  <title>The claude-portable menu</title>
+  <rect width="920" height="520" rx="16" fill="#0d1117"/>
+  <rect width="920" height="40" rx="16" fill="#161b22"/>
+  <rect y="24" width="920" height="16" fill="#161b22"/>
+  <circle cx="26" cy="20" r="6" fill="#ff5f57"/>
+  <circle cx="46" cy="20" r="6" fill="#febc2e"/>
+  <circle cx="66" cy="20" r="6" fill="#28c840"/>
+  <text x="460" y="25" font-size="13" fill="#8b949e" text-anchor="middle" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">start.bat / start.sh / claude-portable.bat</text>
+
+  <g font-size="16">
+    <text x="32" y="80" fill="#6e7681">========================================</text>
+    <text x="32" y="104" fill="#e6edf3" font-weight="700">claude-portable 1.1.0</text>
+    <text x="32" y="128" fill="#8b949e">Claude data in use: C:\Users\me\claude-data</text>
+    <text x="32" y="152" fill="#6e7681">========================================</text>
+    <text x="32" y="184" fill="#e6edf3">1. Install or update on this computer</text>
+    <text x="32" y="208" fill="#e6edf3">2. Status (data folder, settings, workspaces, updates)</text>
+    <text x="32" y="232" fill="#e6edf3">3. Relink a workspace (a project moved to a new path)</text>
+    <text x="32" y="256" fill="#e6edf3">4. Export (zip to carry to another computer)</text>
+    <text x="32" y="280" fill="#e6edf3">5. Import (on the new computer, or after moving the data folder)</text>
+    <text x="32" y="304" fill="#e6edf3">6. Uninstall (back to the default ~/.claude)</text>
+    <text x="32" y="328" fill="#e6edf3">7. Forget a workspace (a project you deleted)</text>
+    <text x="32" y="352" fill="#e6edf3">8. Archive old chats (keep the data folder light)</text>
+    <text x="32" y="376" fill="#e6edf3">9. Restore archived chats</text>
+    <text x="32" y="400" fill="#e6edf3">0. Exit</text>
+    <text x="32" y="432" fill="#e6edf3">Choice: 2</text>
+    <text x="32" y="464" fill="#58a6ff">==&gt; Workspaces</text>
+    <text y="488" fill="#3fb950"><tspan x="68">[ok]</tspan><tspan x="124">my-app</tspan><tspan x="268">12 chats</tspan><tspan x="388">5 memories</tspan><tspan x="530">D:\work\my-app</tspan></text>
+  </g>
+</svg>

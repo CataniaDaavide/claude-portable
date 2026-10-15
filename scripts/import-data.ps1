@@ -95,6 +95,9 @@ $registry = Read-Registry $DataDir
 $names = @($registry['workspaces'].Keys | Sort-Object)
 Write-Step "Workspaces to reconnect: $($names.Count)"
 foreach ($name in $names) {
+    # Read again: relinking a workspace also moves the ones registered inside it.
+    $registry = Read-Registry $DataDir
+    if (-not $registry['workspaces'].ContainsKey($name)) { continue }
     $old = [string]$registry['workspaces'][$name]['path']
     Write-Host ''
     Write-Host "  $name" -ForegroundColor White

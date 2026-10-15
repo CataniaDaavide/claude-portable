@@ -4,3 +4,7 @@ claude-data/
 .credentials.json
 .claude.json
 workspaces.json
+
+# Python cache created by the tests
+__pycache__/
+*.pyc

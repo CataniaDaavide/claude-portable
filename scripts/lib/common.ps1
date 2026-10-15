@@ -45,8 +45,27 @@ function Get-GlobalConfigFile([string]$ClaudeDir) {
 function Get-PortableDir([string]$ClaudeDir) { return (Join-Path $ClaudeDir $script:PortableDirName) }
 function Get-RegistryFile([string]$ClaudeDir) { return (Join-Path (Get-PortableDir $ClaudeDir) $script:RegistryFileName) }
 
+# Expands 8.3 short names (C:\Users\DAVIDE~1\...) to long ones: Claude Code names project folders
+# after the long path, so a short one would point to the wrong folder. Only existing paths can be
+# expanded; Windows matches a short name in a directory listing and returns the long name.
+function Expand-ShortPath([string]$Path) {
+    if ($Path -notmatch '~' -or $Path.StartsWith('\\') -or -not (Test-Path -LiteralPath $Path)) { return $Path }
+    $parts = $Path.Split('\')
+    $current = $parts[0] + '\'
+    for ($i = 1; $i -lt $parts.Length; $i++) {
+        if (-not $parts[$i]) { continue }
+        $name = $parts[$i]
+        if ($name.Contains('~')) {
+            $match = @((New-Object System.IO.DirectoryInfo($current)).GetFileSystemInfos($name)) | Select-Object -First 1
+            if ($match) { $name = $match.Name }
+        }
+        $current = Join-Path $current $name
+    }
+    return $current
+}
+
 function ConvertTo-NormalizedPath([string]$Path) {
-    $full = [System.IO.Path]::GetFullPath($Path)
+    $full = Expand-ShortPath ([System.IO.Path]::GetFullPath($Path))
     if ($full.Length -gt 3) { $full = $full.TrimEnd('\') }
     if ($full -match '^[a-z]:') { $full = $full.Substring(0, 1).ToUpper() + $full.Substring(1) }
     return $full
@@ -207,6 +226,168 @@ function Register-Workspace([string]$ClaudeDir, $Registry, [string]$Path, [strin
     return $name
 }
 
+# Registered workspaces whose path no longer exists and whose folder name matches $Path's:
+# most likely the same project, moved to $Path.
+function Find-MovedWorkspaces($Registry, [string]$Path) {
+    $leaf = Split-Path -Leaf $Path
+    $found = @()
+    foreach ($name in @($Registry['workspaces'].Keys)) {
+        $old = [string]$Registry['workspaces'][$name]['path']
+        if ($old -ieq $Path) { continue }
+        if ((Split-Path -Leaf $old) -ine $leaf) { continue }
+        if (Test-Path -LiteralPath $old) { continue }
+        $found += $name
+    }
+    return $found
+}
+
+# Moves a workspace's folder out of projects\ and removes it from the registry.
+# The folder goes to portable\forgotten so it is not registered again; deleting it frees the space.
+function Remove-Workspace([string]$ClaudeDir, $Registry, [string]$Name) {
+    $entry = $Registry['workspaces'][$Name]
+    $folder = [string]$entry['folder']
+    $moved = $null
+    $source = Join-Path (Join-Path $ClaudeDir 'projects') $folder
+    if ($folder -and (Test-Path -LiteralPath $source)) {
+        $target = Join-Path (Get-PortableDir $ClaudeDir) 'forgotten'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        $moved = Join-Path $target ($folder + '-' + (Get-Date).ToString('yyyyMMdd-HHmmss'))
+        Move-Item -LiteralPath $source -Destination $moved
+    }
+    if ($folder) {
+        $zipTarget = Join-Path (Join-Path (Get-PortableDir $ClaudeDir) 'forgotten') ($folder + '-archive-' + (Get-Date).ToString('yyyyMMdd-HHmmss') + '.zip')
+        if (Move-ChatArchive $ClaudeDir $folder $null $zipTarget) { if (-not $moved) { $moved = $zipTarget } }
+    }
+    [void]$Registry['workspaces'].Remove($Name)
+    return $moved
+}
+
+# ---------------------------------------------------------------- project state in .claude.json
+
+function ConvertTo-ConfigKey([string]$Path) { return $Path.Replace('\', '/') }
+
+# Copies the per-project state Claude Code keeps in .claude.json (folder trust, allowed tools,
+# project MCP servers...) from the old path to the new one, so a moved project is not treated as a
+# new, untrusted folder. Claude Code keys it by the path as it received it, so on Windows the same
+# folder can appear with an upper- and a lower-case drive letter: both are written.
+# The old entry is kept. Returns a description of what was (or would be) done, or $null.
+function Copy-ProjectState([string]$ClaudeDir, [string]$OldPath, [string]$NewPath, [switch]$DryRun) {
+    $file = Get-GlobalConfigFile $ClaudeDir
+    try { $config = Read-JsonFile $file } catch { return $null }
+    $projects = Get-DictValue $config 'projects'
+    if (-not ($projects -is [System.Collections.IDictionary])) { return $null }
+    $oldKey = ConvertTo-ConfigKey $OldPath
+    $sources = @($projects.Keys | Where-Object { $_ -ieq $oldKey })
+    if ($sources.Count -eq 0) { return $null }
+    # The fullest entry is the one Claude Code used most.
+    $source = $projects[($sources | Sort-Object { $projects[$_].Count } -Descending | Select-Object -First 1)]
+    $newKey = ConvertTo-ConfigKey $NewPath
+    $targets = @($newKey)
+    if ($newKey -match '^[A-Za-z]:') {
+        # Parentheses matter: the comma binds tighter than +.
+        $targets = @(($newKey.Substring(0, 1).ToUpper() + $newKey.Substring(1)), ($newKey.Substring(0, 1).ToLower() + $newKey.Substring(1)))
+    }
+    if ($DryRun) { return 'trust and permissions: copied to the new path' }
+
+    $backupDir = Join-Path (Get-PortableDir $ClaudeDir) 'relink-backups'
+    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    Copy-Item -LiteralPath $file -Destination (Join-Path $backupDir ('.claude.json-' + (Get-Date).ToString('yyyyMMdd-HHmmss'))) -Force
+    $serializer = New-Serializer
+    foreach ($key in $targets) {
+        if (-not $projects.ContainsKey($key)) {
+            $projects[$key] = $serializer.DeserializeObject($serializer.Serialize($source))
+            continue
+        }
+        # Already opened at the new path: add what is missing, keep what is there.
+        $target = $projects[$key]
+        foreach ($field in @($source.Keys)) {
+            if (-not $target.ContainsKey($field)) {
+                $target[$field] = $serializer.DeserializeObject($serializer.Serialize($source[$field]))
+            } elseif ($field -eq 'hasTrustDialogAccepted' -and $source[$field] -eq $true) {
+                $target[$field] = $true
+            } elseif ($field -eq 'allowedTools') {
+                $target[$field] = @(@($target[$field]) + @($source[$field]) | Where-Object { $_ } | Select-Object -Unique)
+            }
+        }
+    }
+    Write-JsonFile $file $config
+    return 'trust and permissions copied to the new path'
+}
+
+# ---------------------------------------------------------------- archived chats
+
+# Old chats are moved into one zip per project folder: portable\archive\<folder>.zip. Entries are
+# relative to the project folder (<session>.jsonl and <session>\...), so restoring puts them back.
+function Get-ArchiveDir([string]$ClaudeDir) { return (Join-Path (Get-PortableDir $ClaudeDir) 'archive') }
+function Get-ArchiveFile([string]$ClaudeDir, [string]$Folder) { return (Join-Path (Get-ArchiveDir $ClaudeDir) ($Folder + '.zip')) }
+
+function Add-CompressionTypes { Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem }
+
+# Number of archived chats in a project's archive.
+function Get-ArchivedChatCount([string]$ClaudeDir, [string]$Folder) {
+    $file = Get-ArchiveFile $ClaudeDir $Folder
+    if (-not (Test-Path -LiteralPath $file)) { return 0 }
+    Add-CompressionTypes
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($file)
+    try { return @($zip.Entries | Where-Object { $_.FullName -notmatch '/' -and $_.FullName.EndsWith('.jsonl') }).Count } finally { $zip.Dispose() }
+}
+
+# Follows a project folder that was renamed (relink) or set aside (forget). Returns $true when moved.
+function Move-ChatArchive([string]$ClaudeDir, [string]$OldFolder, [string]$NewFolder, [string]$Destination) {
+    $old = Get-ArchiveFile $ClaudeDir $OldFolder
+    if (-not (Test-Path -LiteralPath $old)) { return $false }
+    $new = if ($Destination) { $Destination } else { Get-ArchiveFile $ClaudeDir $NewFolder }
+    if ($old -ieq $new) { return $false }
+    if (-not (Test-Path -LiteralPath $new)) {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $new) -Force | Out-Null
+        Move-Item -LiteralPath $old -Destination $new
+        return $true
+    }
+    Add-CompressionTypes
+    $from = [System.IO.Compression.ZipFile]::OpenRead($old)
+    $to = [System.IO.Compression.ZipFile]::Open($new, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $names = @{}
+        foreach ($e in $to.Entries) { $names[$e.FullName] = $true }
+        foreach ($e in $from.Entries) {
+            if ($names.ContainsKey($e.FullName)) { continue }
+            $copy = $to.CreateEntry($e.FullName, [System.IO.Compression.CompressionLevel]::Optimal)
+            $copy.LastWriteTime = $e.LastWriteTime
+            $in = $e.Open(); $out = $copy.Open()
+            try { $in.CopyTo($out) } finally { $out.Dispose(); $in.Dispose() }
+        }
+    } finally { $to.Dispose(); $from.Dispose() }
+    Remove-Item -LiteralPath $old -Force
+    return $true
+}
+
+# ---------------------------------------------------------------- version
+
+function Get-PortableVersion {
+    $file = Join-Path (Split-Path -Parent $PSScriptRoot) 'VERSION'
+    if (Test-Path -LiteralPath $file) { return ([System.IO.File]::ReadAllText($file)).Trim() }
+    return 'unknown'
+}
+
+$script:RepoUrl = 'https://github.com/CataniaDaavide/claude-portable'
+$script:RawVersionUrl = 'https://raw.githubusercontent.com/CataniaDaavide/claude-portable/main/scripts/VERSION'
+
+# Latest version published on GitHub, or $null when offline / not reachable within a few seconds.
+function Get-LatestVersion {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $text = (Invoke-WebRequest -Uri $script:RawVersionUrl -UseBasicParsing -TimeoutSec 5).Content
+        if ($text -is [byte[]]) { $text = [System.Text.Encoding]::UTF8.GetString($text) }
+        return ([string]$text).Trim()
+    } catch { return $null }
+}
+
+function Compare-Version([string]$A, [string]$B) {
+    $va = $null; $vb = $null
+    if (-not [version]::TryParse($A, [ref]$va) -or -not [version]::TryParse($B, [ref]$vb)) { return 0 }
+    return $va.CompareTo($vb)
+}
+
 # Reads the working directory recorded in a project's transcripts (first "cwd" found).
 function Get-CwdFromTranscripts([string]$FolderPath) {
     $files = Get-ChildItem -LiteralPath $FolderPath -Filter '*.jsonl' -File -ErrorAction SilentlyContinue |
@@ -262,6 +443,74 @@ function Update-RegistryFromDisk([string]$ClaudeDir, $Registry) {
     return @{ Added = $added; Unknown = $unknown }
 }
 
+# ---------------------------------------------------------------- compatibility
+
+# claude-portable relies on Claude Code behaviour that is not a documented contract. These checks use
+# the data already on disk to tell whether it still holds, so a Claude Code update that changes it
+# shows up here instead of silently breaking relink. Returns objects with Level (ok|warn|info) and Text.
+function Get-CompatibilityReport([string]$ClaudeDir, $Registry) {
+    $report = @()
+    $projectsDir = Join-Path $ClaudeDir 'projects'
+
+    # 1. Project folders are named after the working directory (non-alphanumerics -> '-').
+    $matched = 0
+    $mismatched = @()
+    foreach ($dir in (Get-ChildItem -LiteralPath $projectsDir -Directory -ErrorAction SilentlyContinue)) {
+        $cwd = Get-CwdFromTranscripts $dir.FullName
+        if (-not $cwd) { continue }
+        $expected = Get-ProjectFolderName $cwd
+        $same = if ($expected.Length -le 200) { $dir.Name -ieq $expected } else { $dir.Name.StartsWith($expected.Substring(0, 200), [StringComparison]::OrdinalIgnoreCase) }
+        if ($same) { $matched++; continue }
+        # A relinked folder still holds chats that recorded the old path.
+        $relinked = $false
+        foreach ($e in $Registry['workspaces'].Values) {
+            if (([string]$e['folder']) -ieq $dir.Name -and (@($e['previousPaths']) -contains $cwd)) { $relinked = $true }
+        }
+        if (-not $relinked) { $mismatched += $dir.Name }
+    }
+    if ($matched -eq 0 -and $mismatched.Count -eq 0) {
+        $report += [pscustomobject]@{ Level = 'info'; Text = 'Project folder names: nothing to check yet (no chats).' }
+    } elseif ($mismatched.Count -eq 0) {
+        $report += [pscustomobject]@{ Level = 'ok'; Text = "Project folder names follow the expected rule ($matched checked)." }
+    } elseif ($matched -eq 0) {
+        $report += [pscustomobject]@{ Level = 'warn'; Text = 'Project folder names do NOT follow the expected rule: Claude Code changed how it names them, relink will not work.' }
+    } else {
+        $report += [pscustomobject]@{ Level = 'warn'; Text = ('Some project folders do not match their chats'' path: ' + ($mismatched -join ', ')) }
+    }
+
+    # 2. With CLAUDE_CONFIG_DIR set, the global state file lives inside the data folder.
+    if ($ClaudeDir.TrimEnd('\') -ine (Get-DefaultClaudeDir)) {
+        $inside = Join-Path $ClaudeDir '.claude.json'
+        $homeFile = Join-Path $env:USERPROFILE '.claude.json'
+        $insideTime = if (Test-Path -LiteralPath $inside) { (Get-Item -LiteralPath $inside).LastWriteTime } else { [datetime]::MinValue }
+        $homeTime = if (Test-Path -LiteralPath $homeFile) { (Get-Item -LiteralPath $homeFile).LastWriteTime } else { [datetime]::MinValue }
+        if ($insideTime -eq [datetime]::MinValue -and $homeTime -eq [datetime]::MinValue) {
+            $report += [pscustomobject]@{ Level = 'info'; Text = 'Global state file: not written yet.' }
+        } elseif ($homeTime -gt $insideTime.AddMinutes(1)) {
+            $report += [pscustomobject]@{ Level = 'warn'; Text = "Claude Code writes its state to $homeFile, not to the data folder: that file would not travel with it." }
+        } else {
+            $report += [pscustomobject]@{ Level = 'ok'; Text = 'Global state file is kept in the data folder.' }
+        }
+    }
+
+    # 3. The SessionStart hook runs: the registry is refreshed whenever a session starts.
+    $lastChat = Get-ChildItem -LiteralPath $projectsDir -Filter '*.jsonl' -File -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $lastUsed = [datetime]::MinValue
+    foreach ($e in $Registry['workspaces'].Values) {
+        $t = [datetime]::MinValue
+        if ([datetime]::TryParse([string]$e['lastUsed'], [ref]$t) -and $t -gt $lastUsed) { $lastUsed = $t }
+    }
+    if (-not $lastChat) {
+        $report += [pscustomobject]@{ Level = 'info'; Text = 'Hook: nothing to check yet (no chats).' }
+    } elseif ($lastChat.LastWriteTime -gt $lastUsed.AddDays(3)) {
+        $report += [pscustomobject]@{ Level = 'warn'; Text = 'The SessionStart hook does not seem to run: the registry is older than your latest chats.' }
+    } else {
+        $report += [pscustomobject]@{ Level = 'ok'; Text = 'The SessionStart hook runs.' }
+    }
+    return $report
+}
+
 # ---------------------------------------------------------------- settings
 
 function Get-HookCommand {
@@ -270,13 +519,20 @@ function Get-HookCommand {
     return "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command '& (Join-Path `$env:CLAUDE_CONFIG_DIR portable\scripts\register-workspace.ps1)'"
 }
 
+# A claude-portable hook from either version: Windows (this file) or macOS/Linux (unix\claude_portable.py).
+# A data folder can move between systems, so the other system's hook is replaced, never kept.
+function Test-PortableHookCommand([string]$Command) {
+    return ($Command.Contains($script:HookMarker) -or $Command.Contains('claude_portable.py'))
+}
+
+# True only when this system's hook is installed.
 function Test-HookInstalled($Settings) {
     $hooks = Get-DictValue $Settings 'hooks'
     $start = Get-DictValue $hooks 'SessionStart'
     if (-not $start) { return $false }
     foreach ($group in @($start)) {
         foreach ($h in @(Get-DictValue $group 'hooks')) {
-            if ($h -and ([string](Get-DictValue $h 'command')).Contains($script:HookMarker)) { return $true }
+            if ($h -and ([string](Get-DictValue $h 'command')) -eq (Get-HookCommand)) { return $true }
         }
     }
     return $false
@@ -284,6 +540,7 @@ function Test-HookInstalled($Settings) {
 
 function Add-SessionStartHook($Settings) {
     if (Test-HookInstalled $Settings) { return $false }
+    [void](Remove-SessionStartHook $Settings)
     if (-not $Settings.ContainsKey('hooks') -or $null -eq $Settings['hooks']) { $Settings['hooks'] = New-Dict }
     $hooks = $Settings['hooks']
     $list = @()
@@ -306,7 +563,7 @@ function Remove-SessionStartHook($Settings) {
     $kept = @()
     $removed = $false
     foreach ($group in @($start)) {
-        $inner = @(@(Get-DictValue $group 'hooks') | Where-Object { -not ([string](Get-DictValue $_ 'command')).Contains($script:HookMarker) })
+        $inner = @(@(Get-DictValue $group 'hooks') | Where-Object { -not (Test-PortableHookCommand ([string](Get-DictValue $_ 'command'))) })
         if ($inner.Count -ne @(Get-DictValue $group 'hooks').Count) { $removed = $true }
         if ($inner.Count -gt 0) { $group['hooks'] = $inner; $kept += $group }
     }
@@ -331,6 +588,8 @@ function Save-Settings([string]$ClaudeDir, $Settings) {
 
 # ---------------------------------------------------------------- user CLAUDE.md block
 
+# Identical in unix\claude_portable.py, so the block does not change when a data folder moves
+# between Windows and macOS/Linux.
 function Get-ClaudeMdBlock {
     $lines = @(
         $script:ClaudeMdStart,
@@ -338,15 +597,20 @@ function Get-ClaudeMdBlock {
         '',
         '- All Claude Code data (settings, transcripts, auto memory) lives in the folder named by the',
         '  `CLAUDE_CONFIG_DIR` environment variable, so it can be moved to another computer.',
-        '- `portable\workspaces.json` in that folder is the registry of workspaces (project path ->',
-        '  folder under `projects\`). A SessionStart hook keeps it up to date; do not edit it by hand.',
+        '- `portable/workspaces.json` in that folder is the registry of workspaces (project path ->',
+        '  folder under `projects/`). A SessionStart hook keeps it up to date; do not edit it by hand.',
         '- When the user says a project now lives at a different path (moved folder, new computer):',
         '  1. Read the registry and find the workspace by name or old path.',
-        '  2. Run `relink-workspace.ps1` from `portable\scripts` with `-DryRun` first, show the plan,',
-        '     then run it for real after the user agrees:',
-        '     `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:CLAUDE_CONFIG_DIR\portable\scripts\relink-workspace.ps1" -Name <name> -NewPath "<new path>"`',
+        '  2. Relink it: dry run first and show the plan, then run it with the force flag once the user agrees.',
+        '     - Windows: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:CLAUDE_CONFIG_DIR\portable\scripts\relink-workspace.ps1" -Name <name> -NewPath "<new path>" -DryRun` (then `-Force`)',
+        '     - macOS/Linux: `python3 "$CLAUDE_CONFIG_DIR/portable/unix/claude_portable.py" relink --name <name> --new-path "<new path>" --dry-run` (then `--force`)',
         '  3. If the workspace being relinked is the one of the current session, tell the user to',
-        '     reopen Claude Code in the new path afterwards (the running session keeps the old folder).',
+        '     reopen Claude Code in the new path afterwards.',
+        '- At session start the hook may add a "[claude-portable]" note saying this project looks like a',
+        '  registered workspace that moved here. Tell the user right away and offer the relink above.',
+        '  If the user says it is a different project, register it so it is not suggested again:',
+        '     - Windows: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:CLAUDE_CONFIG_DIR\portable\scripts\register-workspace.ps1" -Path "<project path>"`',
+        '     - macOS/Linux: `python3 "$CLAUDE_CONFIG_DIR/portable/unix/claude_portable.py" register --path "<project path>"`',
         '- Never copy or upload `.credentials.json`; on a new computer the user logs in again.',
         $script:ClaudeMdEnd
     )
@@ -385,6 +649,8 @@ function Get-ClaudeProcesses {
 }
 
 function Assert-ClaudeClosed([switch]$Force) {
+    # Set by the test suite, so the questions do not depend on what runs on the machine.
+    if ($env:CLAUDE_PORTABLE_SKIP_PROCESS_CHECK -eq '1') { return $true }
     # @() again at the call site: a function returning 0 or 1 items does not return an array.
     $procs = @(Get-ClaudeProcesses)
     if ($procs.Count -eq 0) { return $true }
@@ -407,6 +673,12 @@ function Copy-PortableScripts([string]$ClaudeDir) {
     $target = Join-Path (Get-PortableDir $ClaudeDir) 'scripts'
     if ((ConvertTo-NormalizedPath $source) -ieq (ConvertTo-NormalizedPath $target)) { return }
     if (-not (Invoke-Robocopy $source $target @('/PURGE'))) { throw "Could not copy the scripts to $target" }
+    # The macOS/Linux version travels too, so the data folder works on either system.
+    $unixSource = Join-Path (Split-Path -Parent $source) 'unix'
+    $unixTarget = Join-Path (Get-PortableDir $ClaudeDir) 'unix'
+    if ((Test-Path -LiteralPath $unixSource) -and ((ConvertTo-NormalizedPath $unixSource) -ine (ConvertTo-NormalizedPath $unixTarget))) {
+        if (-not (Invoke-Robocopy $unixSource $unixTarget @('/PURGE', '/XD', '__pycache__'))) { throw "Could not copy the scripts to $unixTarget" }
+    }
 }
 
 # Launcher and readme inside the data folder, so it can be used without the repository.
@@ -415,7 +687,11 @@ $script:LauncherName = 'claude-portable.bat'
 function Install-DataFolderFiles([string]$ClaudeDir) {
     $scriptsDir = Split-Path -Parent $PSScriptRoot
     $templates = Join-Path $scriptsDir 'data-folder'
-    Copy-Item -LiteralPath (Join-Path $templates $script:LauncherName) -Destination (Join-Path $ClaudeDir $script:LauncherName) -Force
+    # Both launchers: the folder may be opened on macOS/Linux too.
+    foreach ($name in @($script:LauncherName, 'claude-portable.sh')) {
+        $file = Join-Path $templates $name
+        if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination (Join-Path $ClaudeDir $name) -Force }
+    }
     Copy-Item -LiteralPath (Join-Path $templates 'README.md') -Destination (Join-Path (Get-PortableDir $ClaudeDir) 'README.md') -Force
 
     # Full guides go to portable\docs. Only when running from the repository: run from the data
@@ -424,9 +700,18 @@ function Install-DataFolderFiles([string]$ClaudeDir) {
     if ((Test-Path -LiteralPath (Join-Path $repoRoot 'start.bat')) -and (Test-Path -LiteralPath (Join-Path $repoRoot 'README.it.md'))) {
         $docs = Join-Path (Get-PortableDir $ClaudeDir) 'docs'
         New-Item -ItemType Directory -Path $docs -Force | Out-Null
-        foreach ($name in @('README.md', 'README.it.md', 'LICENSE')) {
+        foreach ($name in @('README.md', 'README.it.md', 'CHANGELOG.md')) {
             $file = Join-Path $repoRoot $name
-            if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination (Join-Path $docs $name) -Force }
+            # The guides point to docs/images/ in the repository; here the images sit next to them.
+            if (Test-Path -LiteralPath $file) {
+                Write-TextFile (Join-Path $docs $name) ([System.IO.File]::ReadAllText($file).Replace('docs/images/', 'images/'))
+            }
+        }
+        $license = Join-Path $repoRoot 'LICENSE'
+        if (Test-Path -LiteralPath $license) { Copy-Item -LiteralPath $license -Destination (Join-Path $docs 'LICENSE') -Force }
+        $images = Join-Path $repoRoot 'docs\images'
+        if (Test-Path -LiteralPath $images) {
+            if (-not (Invoke-Robocopy $images (Join-Path $docs 'images') @('/PURGE'))) { throw 'Could not copy the images.' }
         }
     }
 }

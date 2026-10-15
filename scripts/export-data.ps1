@@ -36,7 +36,7 @@ if (-not (Assert-ClaudeClosed -Force:$Force)) { exit 1 }
 $staging = Join-Path ([System.IO.Path]::GetTempPath()) ('claude-portable-export-' + [guid]::NewGuid().ToString('N'))
 try {
     Write-Step 'Collecting files'
-    $excludeDirs = @('cache', 'ide', 'session-env', 'sessions', 'shell-snapshots', 'statsig', 'downloads', 'backups', 'relink-backups')
+    $excludeDirs = @('cache', 'ide', 'session-env', 'sessions', 'shell-snapshots', 'statsig', 'downloads', 'backups', 'relink-backups', 'forgotten')
     $excludeFiles = @('.credentials.json', '*.tmp-*', 'hook-errors.log', '*.heapsnapshot')
     $ok = Invoke-Robocopy $claudeDir $staging (@('/XD') + $excludeDirs + @('/XF') + $excludeFiles)
     if (-not $ok) { throw 'Copy failed (robocopy).' }

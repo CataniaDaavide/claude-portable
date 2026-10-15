@@ -1,0 +1,27 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    name: Windows (PowerShell 5.1)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the Windows test suite
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\run-tests.ps1
+
+  unix:
+    name: ${{ matrix.os == 'macos-latest' && 'macOS' || 'Linux' }} (Python 3)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the macOS/Linux test suite
+        run: python3 tests/test_unix.py -v

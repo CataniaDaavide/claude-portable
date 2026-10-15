@@ -12,6 +12,18 @@ $projectsDir = Join-Path $claudeDir 'projects'
 Write-Host ''
 Write-Host 'claude-portable - status' -ForegroundColor White
 
+Write-Step 'Version'
+$current = Get-PortableVersion
+$latest = Get-LatestVersion
+if (-not $latest) {
+    Write-Info "$current (could not check GitHub for updates)"
+} elseif ((Compare-Version $latest $current) -gt 0) {
+    Write-Warn "$current installed, $latest available. To update, run in PowerShell:"
+    Write-Info "  irm https://raw.githubusercontent.com/CataniaDaavide/claude-portable/main/get.ps1 | iex"
+} else {
+    Write-Ok "$current (up to date)"
+}
+
 Write-Step 'Data folder'
 if ($userVar) { Write-Ok "CLAUDE_CONFIG_DIR (user) = $userVar" } else { Write-Warn 'CLAUDE_CONFIG_DIR is not set: Claude Code uses the default ~/.claude' }
 if ($env:CLAUDE_CONFIG_DIR -and $userVar -and ($env:CLAUDE_CONFIG_DIR.TrimEnd('\') -ine $userVar.TrimEnd('\'))) {
@@ -47,6 +59,7 @@ $rows = foreach ($name in ($registry['workspaces'].Keys | Sort-Object)) {
         Name     = $name
         Chats    = if ($hasFolder) { @(Get-ChildItem -LiteralPath $folder -Filter '*.jsonl' -File).Count } else { 0 }
         Memories = if ($hasFolder -and (Test-Path -LiteralPath (Join-Path $folder 'memory'))) { @(Get-ChildItem -LiteralPath (Join-Path $folder 'memory') -Filter '*.md' -File | Where-Object { $_.Name -ne 'MEMORY.md' }).Count } else { 0 }
+        Archived = Get-ArchivedChatCount $claudeDir ([string]$e['folder'])
         PathOk   = if (Test-Path -LiteralPath ([string]$e['path'])) { 'yes' } else { 'NO' }
         LastUsed = [string]$e['lastUsed']
         Path     = [string]$e['path']
@@ -54,7 +67,21 @@ $rows = foreach ($name in ($registry['workspaces'].Keys | Sort-Object)) {
 }
 if ($rows) { $rows | Format-Table -AutoSize | Out-String -Width 220 | Write-Host } else { Write-Info '(none yet)' }
 if (@($rows | Where-Object { $_.PathOk -eq 'NO' }).Count -gt 0) {
-    Write-Warn 'Workspaces marked NO point to a path that does not exist here: use "Relink" to give the new path.'
+    Write-Warn 'Workspaces marked NO point to a path that does not exist here: use "Relink" if the project moved,'
+    Write-Info '    or "Forget" if you deleted it.'
+}
+
+Write-Step 'Compatibility with this Claude Code version'
+$problems = 0
+foreach ($line in (Get-CompatibilityReport $claudeDir $registry)) {
+    switch ($line.Level) {
+        'ok' { Write-Ok $line.Text }
+        'warn' { Write-Warn $line.Text; $problems++ }
+        default { Write-Info $line.Text }
+    }
+}
+if ($problems -gt 0) {
+    Write-Info "If a check fails after a Claude Code update, please open an issue: $($script:RepoUrl)/issues"
 }
 
 $registered = @{}
