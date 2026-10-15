@@ -1,0 +1,6 @@
+# Never commit Claude data or exports: they contain your chats and possibly secrets.
+*.zip
+claude-data/
+.credentials.json
+.claude.json
+workspaces.json
