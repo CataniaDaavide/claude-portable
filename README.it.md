@@ -31,8 +31,9 @@ In più, per impostazione predefinita le chat più vecchie di 30 giorni vengono 
 | **Esporta / Importa** | Uno zip senza il tuo login da portare su un altro PC, e un'importazione guidata che chiede dove si trova ora ogni progetto. |
 
 Gli script vengono copiati anche dentro la cartella dati (`portable\scripts`), insieme a un
-`claude-portable.bat` per aprire il menu e a un breve readme: sul nuovo PC la cartella funziona da
-sola, senza questo repository (vedi [Solo la cartella dati](#solo-la-cartella-dati)).
+`claude-portable.bat` per aprire il menu, a un breve readme e a queste guide complete
+(`portable\docs`): sul nuovo PC la cartella funziona da sola, anche senza internet e senza questo
+repository (vedi [Solo la cartella dati](#solo-la-cartella-dati)).
 
 ## Avvio rapido
 

@@ -413,7 +413,20 @@ function Copy-PortableScripts([string]$ClaudeDir) {
 $script:LauncherName = 'claude-portable.bat'
 
 function Install-DataFolderFiles([string]$ClaudeDir) {
-    $templates = Join-Path (Split-Path -Parent $PSScriptRoot) 'data-folder'
+    $scriptsDir = Split-Path -Parent $PSScriptRoot
+    $templates = Join-Path $scriptsDir 'data-folder'
     Copy-Item -LiteralPath (Join-Path $templates $script:LauncherName) -Destination (Join-Path $ClaudeDir $script:LauncherName) -Force
     Copy-Item -LiteralPath (Join-Path $templates 'README.md') -Destination (Join-Path (Get-PortableDir $ClaudeDir) 'README.md') -Force
+
+    # Full guides go to portable\docs. Only when running from the repository: run from the data
+    # folder, the parent of scripts\ is portable\ itself and the docs are already in place.
+    $repoRoot = Split-Path -Parent $scriptsDir
+    if ((Test-Path -LiteralPath (Join-Path $repoRoot 'start.bat')) -and (Test-Path -LiteralPath (Join-Path $repoRoot 'README.it.md'))) {
+        $docs = Join-Path (Get-PortableDir $ClaudeDir) 'docs'
+        New-Item -ItemType Directory -Path $docs -Force | Out-Null
+        foreach ($name in @('README.md', 'README.it.md', 'LICENSE')) {
+            $file = Join-Path $repoRoot $name
+            if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination (Join-Path $docs $name) -Force }
+        }
+    }
 }

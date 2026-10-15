@@ -7,6 +7,7 @@ and works on its own: you do not need the repository to use it.
 - `claude-portable.bat` (one level up): opens the menu (status, relink, export, import, uninstall).
 - `portable\workspaces.json`: which project path belongs to which folder under `projects\`.
 - `portable\scripts\`: the scripts the menu runs.
+- `portable\docs\`: the full guides (`README.md` in English, `README.it.md` in Italian).
 
 ## Use it on another computer
 
@@ -36,6 +37,7 @@ funziona da sola: il repository non serve.
 - `claude-portable.bat` (nella cartella sopra): apre il menu (stato, ricollega, esporta, importa, disinstalla).
 - `portable\workspaces.json`: quale percorso di progetto corrisponde a quale cartella in `projects\`.
 - `portable\scripts\`: gli script usati dal menu.
+- `portable\docs\`: le guide complete (`README.md` in inglese, `README.it.md` in italiano).
 
 ## Usarla su un altro PC
 

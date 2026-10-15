@@ -31,7 +31,8 @@ zero even if you copied the data. On top of that, chats older than 30 days are d
 | **Export / Import** | A zip without your login to carry to another computer, and a guided import that asks where each project lives now. |
 
 The scripts are copied into the data folder (`portable\scripts`), together with a
-`claude-portable.bat` launcher and a short readme, so the folder works on its own: on a new
+`claude-portable.bat` launcher, a short readme and these full guides (`portable\docs`), so the
+folder works on its own, even offline: on a new
 computer you do not need this repository (see [Only the data folder](#only-the-data-folder)).
 
 ## Quick start
